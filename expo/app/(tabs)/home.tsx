@@ -1,6 +1,6 @@
 // app/(tabs)/index.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -64,8 +64,11 @@ export default function HomeScreen() {
   const [selectedCuisine, setSelectedCuisine] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
 
+  // ✅ Prevent duplicate calls during React Strict Mode double-renders
+  const hasFetched = useRef(false);
+
   /* ────────────────────────────────────────────────────────
-     Fetch Restaurants — ONE attempt only, then mock fallback
+     Fetch Restaurants — ONE single attempt, then mock fallback
   ──────────────────────────────────────────────────────── */
 
   const {
@@ -76,24 +79,41 @@ export default function HomeScreen() {
   } = useQuery({
     queryKey: ['restaurants'],
     queryFn: async () => {
+      // ✅ Guard against duplicate calls from Strict Mode
+      if (hasFetched.current) {
+        console.log('[Home] Skipping duplicate fetch, using cached/mock data');
+        return { data: mockRestaurants as unknown as Restaurant[] };
+      }
+      hasFetched.current = true;
+
       try {
+        console.log('[Home] Fetching restaurants from API (single attempt)...');
         const result = await api.getRestaurants();
         if (result?.data && result.data.length > 0) {
+          console.log(`[Home] ✅ Loaded ${result.data.length} restaurants from API`);
           return result;
         }
       } catch (err) {
-        console.warn('[HomeScreen] API fetch failed, using mock data:', err);
+        console.warn('[Home] API unavailable, using mock data');
       }
-      // Fallback to mock data — this is NOT an error, just local data
+
+      // Fallback to mock data — this is a success, NOT an error
+      console.log(`[Home] ✅ Using mock restaurants: ${mockRestaurants.length}`);
       return { data: mockRestaurants as unknown as Restaurant[] };
     },
-    staleTime: Infinity,            // Never consider data stale automatically
-    gcTime: Infinity,               // Never garbage-collect cached data
-    retry: 0,                       // ❌ No retries on failure
-    refetchOnWindowFocus: false,    // ❌ Don't refetch when app regains focus
-    refetchOnMount: false,          // ❌ Don't refetch when component remounts
-    refetchOnReconnect: false,      // ❌ Don't refetch when network reconnects
-    refetchInterval: false,         // ❌ No polling
+
+    // ✅ ALL automatic re-fetching disabled
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,                    // ❌ No retries
+    retryOnMount: false,             // ❌ No retry on mount
+    refetchOnMount: false,           // ❌ No refetch on mount
+    refetchOnWindowFocus: false,     // ❌ No refetch on focus
+    refetchOnReconnect: false,       // ❌ No refetch on reconnect
+    refetchInterval: false,          // ❌ No polling
+    refetchIntervalInBackground: false,
+    networkMode: 'always',           // ✅ Don't wait for network status
+    structuralSharing: false,        // ✅ Prevent unnecessary re-renders
   });
 
   const restaurants = data?.data || [];
@@ -104,7 +124,6 @@ export default function HomeScreen() {
 
   const filteredRestaurants = useMemo(() => {
     return restaurants.filter((restaurant) => {
-      // Search filter
       const matchesSearch =
         searchQuery.trim() === '' ||
         restaurant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -113,7 +132,6 @@ export default function HomeScreen() {
         ) ||
         restaurant.address?.toLowerCase().includes(searchQuery.toLowerCase());
 
-      // Cuisine filter
       const matchesCuisine =
         selectedCuisine === 'All' ||
         restaurant.cuisineTypes?.includes(selectedCuisine) ||
@@ -124,11 +142,12 @@ export default function HomeScreen() {
   }, [restaurants, searchQuery, selectedCuisine]);
 
   /* ────────────────────────────────────────────────────────
-     Pull to Refresh (manual only — user-initiated)
+     Pull to Refresh (manual only)
   ──────────────────────────────────────────────────────── */
 
   const onRefresh = async () => {
     setRefreshing(true);
+    hasFetched.current = false; // ✅ Allow one fresh fetch on manual refresh
     try {
       await refetch();
     } finally {
@@ -170,7 +189,7 @@ export default function HomeScreen() {
             ? error.message
             : 'Failed to load restaurants. Please check your internet connection.'}
         </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
+        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -178,7 +197,7 @@ export default function HomeScreen() {
   }
 
   /* ────────────────────────────────────────────────────────
-     Empty State (No Restaurants in Database)
+     Empty State
   ──────────────────────────────────────────────────────── */
 
   if (restaurants.length === 0) {
@@ -201,7 +220,6 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Discover</Text>
         <Text style={styles.headerSubtitle}>
@@ -209,7 +227,6 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Search size={20} color={COLORS.textMuted} style={styles.searchIcon} />
         <TextInput
@@ -227,7 +244,6 @@ export default function HomeScreen() {
         )}
       </View>
 
-      {/* Cuisine Filter Chips */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -255,7 +271,6 @@ export default function HomeScreen() {
         ))}
       </ScrollView>
 
-      {/* Results Count */}
       <View style={styles.resultsContainer}>
         <Text style={styles.resultsText}>
           {filteredRestaurants.length} restaurant
@@ -263,7 +278,6 @@ export default function HomeScreen() {
         </Text>
       </View>
 
-      {/* Restaurant List */}
       {filteredRestaurants.length === 0 ? (
         <View style={styles.noResultsContainer}>
           <Text style={styles.noResultsText}>No restaurants found</Text>
@@ -313,7 +327,6 @@ function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      {/* Restaurant Image */}
       <View style={styles.cardImageContainer}>
         {restaurant.images && restaurant.images.length > 0 ? (
           <Image
@@ -333,7 +346,6 @@ function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {
         )}
       </View>
 
-      {/* Restaurant Info */}
       <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
           <Text style={styles.cardName} numberOfLines={1}>
@@ -342,7 +354,6 @@ function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {
           <ChevronRight size={20} color={COLORS.textLight} />
         </View>
 
-        {/* Cuisine Tags */}
         {restaurant.cuisineTypes && restaurant.cuisineTypes.length > 0 && (
           <View style={styles.cuisineTagsContainer}>
             {restaurant.cuisineTypes.slice(0, 2).map((cuisine, index) => (
@@ -360,7 +371,6 @@ function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {
           </View>
         )}
 
-        {/* Address */}
         <View style={styles.cardRow}>
           <MapPin size={14} color={COLORS.textMuted} />
           <Text style={styles.cardAddress} numberOfLines={1}>
@@ -368,9 +378,7 @@ function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {
           </Text>
         </View>
 
-        {/* Stats Row */}
         <View style={styles.cardStats}>
-          {/* Rating */}
           <View style={styles.cardStatItem}>
             <Star size={14} color={COLORS.star} fill={COLORS.star} />
             <Text style={styles.cardStatText}>
@@ -379,13 +387,11 @@ function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {
             <Text style={styles.cardStatSubtext}>({reviewCount})</Text>
           </View>
 
-          {/* Price Range */}
           <View style={styles.cardStatDivider} />
           <View style={styles.cardStatItem}>
             <Text style={styles.cardPriceRange}>{priceRange}</Text>
           </View>
 
-          {/* City */}
           {restaurant.city && (
             <>
               <View style={styles.cardStatDivider} />
