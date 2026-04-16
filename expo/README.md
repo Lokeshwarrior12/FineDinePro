@@ -1,4 +1,4 @@
-# Welcome to your app
+# Welcome to the app
 
 ## Project info
 
