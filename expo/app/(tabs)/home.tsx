@@ -65,7 +65,7 @@ export default function HomeScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   /* ────────────────────────────────────────────────────────
-     Fetch Restaurants from Real Backend
+     Fetch Restaurants — ONE attempt only, then mock fallback
   ──────────────────────────────────────────────────────── */
 
   const {
@@ -84,12 +84,16 @@ export default function HomeScreen() {
       } catch (err) {
         console.warn('[HomeScreen] API fetch failed, using mock data:', err);
       }
+      // Fallback to mock data — this is NOT an error, just local data
       return { data: mockRestaurants as unknown as Restaurant[] };
     },
-    staleTime: 5 * 60 * 1000,
-    gcTime: 10 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: true,
+    staleTime: Infinity,            // Never consider data stale automatically
+    gcTime: Infinity,               // Never garbage-collect cached data
+    retry: 0,                       // ❌ No retries on failure
+    refetchOnWindowFocus: false,    // ❌ Don't refetch when app regains focus
+    refetchOnMount: false,          // ❌ Don't refetch when component remounts
+    refetchOnReconnect: false,      // ❌ Don't refetch when network reconnects
+    refetchInterval: false,         // ❌ No polling
   });
 
   const restaurants = data?.data || [];
@@ -120,7 +124,7 @@ export default function HomeScreen() {
   }, [restaurants, searchQuery, selectedCuisine]);
 
   /* ────────────────────────────────────────────────────────
-     Pull to Refresh
+     Pull to Refresh (manual only — user-initiated)
   ──────────────────────────────────────────────────────── */
 
   const onRefresh = async () => {
