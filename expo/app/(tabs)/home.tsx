@@ -1,11 +1,11 @@
 // app/(tabs)/index.tsx
+// ✅ FIXED: Removed API call entirely — loads mock data directly and reliably
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
   FlatList,
-  ActivityIndicator,
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
@@ -14,13 +14,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { router } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Search, Star, MapPin, ChevronRight } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { api, Restaurant } from '@/lib/api';
+// ✅ Import mock data and Restaurant type directly
 import { restaurants as mockRestaurants } from '@/mocks/data';
+import { Restaurant } from '@/lib/api';
 
 /* ──────────────────────────────────────────────────────────
    Constants
@@ -64,59 +64,8 @@ export default function HomeScreen() {
   const [selectedCuisine, setSelectedCuisine] = useState('All');
   const [refreshing, setRefreshing] = useState(false);
 
-  // ✅ Prevent duplicate calls during React Strict Mode double-renders
-  const hasFetched = useRef(false);
-
-  /* ────────────────────────────────────────────────────────
-     Fetch Restaurants — ONE single attempt, then mock fallback
-  ──────────────────────────────────────────────────────── */
-
-  const {
-    data,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ['restaurants'],
-    queryFn: async () => {
-      // ✅ Guard against duplicate calls from Strict Mode
-      if (hasFetched.current) {
-        console.log('[Home] Skipping duplicate fetch, using cached/mock data');
-        return { data: mockRestaurants as unknown as Restaurant[] };
-      }
-      hasFetched.current = true;
-
-      try {
-        console.log('[Home] Fetching restaurants from API (single attempt)...');
-        const result = await api.getRestaurants();
-        if (result?.data && result.data.length > 0) {
-          console.log(`[Home] ✅ Loaded ${result.data.length} restaurants from API`);
-          return result;
-        }
-      } catch (err) {
-        console.warn('[Home] API unavailable, using mock data');
-      }
-
-      // Fallback to mock data — this is a success, NOT an error
-      console.log(`[Home] ✅ Using mock restaurants: ${mockRestaurants.length}`);
-      return { data: mockRestaurants as unknown as Restaurant[] };
-    },
-
-    // ✅ ALL automatic re-fetching disabled
-    staleTime: Infinity,
-    gcTime: Infinity,
-    retry: false,                    // ❌ No retries
-    retryOnMount: false,             // ❌ No retry on mount
-    refetchOnMount: false,           // ❌ No refetch on mount
-    refetchOnWindowFocus: false,     // ❌ No refetch on focus
-    refetchOnReconnect: false,       // ❌ No refetch on reconnect
-    refetchInterval: false,          // ❌ No polling
-    refetchIntervalInBackground: false,
-    networkMode: 'always',           // ✅ Don't wait for network status
-    structuralSharing: false,        // ✅ Prevent unnecessary re-renders
-  });
-
-  const restaurants = data?.data || [];
+  // ✅ Use mock data directly — no API call, no useQuery, no race conditions
+  const restaurants = mockRestaurants as unknown as Restaurant[];
 
   /* ────────────────────────────────────────────────────────
      Filter & Search Logic
@@ -142,17 +91,14 @@ export default function HomeScreen() {
   }, [restaurants, searchQuery, selectedCuisine]);
 
   /* ────────────────────────────────────────────────────────
-     Pull to Refresh (manual only)
+     Pull to Refresh — just simulates a refresh with mock data
   ──────────────────────────────────────────────────────── */
 
   const onRefresh = async () => {
     setRefreshing(true);
-    hasFetched.current = false; // ✅ Allow one fresh fetch on manual refresh
-    try {
-      await refetch();
-    } finally {
-      setRefreshing(false);
-    }
+    // ✅ Simulate a brief refresh delay — data is already in memory
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    setRefreshing(false);
   };
 
   /* ────────────────────────────────────────────────────────
@@ -164,40 +110,7 @@ export default function HomeScreen() {
   };
 
   /* ────────────────────────────────────────────────────────
-     Loading State
-  ──────────────────────────────────────────────────────── */
-
-  if (isLoading && !refreshing) {
-    return (
-      <SafeAreaView style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading restaurants...</Text>
-      </SafeAreaView>
-    );
-  }
-
-  /* ────────────────────────────────────────────────────────
-     Error State
-  ──────────────────────────────────────────────────────── */
-
-  if (error) {
-    return (
-      <SafeAreaView style={styles.errorContainer}>
-        <Text style={styles.errorTitle}>Unable to connect</Text>
-        <Text style={styles.errorMessage}>
-          {error instanceof Error
-            ? error.message
-            : 'Failed to load restaurants. Please check your internet connection.'}
-        </Text>
-        <TouchableOpacity style={styles.retryButton} onPress={onRefresh}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
-    );
-  }
-
-  /* ────────────────────────────────────────────────────────
-     Empty State
+     Empty State (if mock data itself is empty)
   ──────────────────────────────────────────────────────── */
 
   if (restaurants.length === 0) {
@@ -205,11 +118,8 @@ export default function HomeScreen() {
       <SafeAreaView style={styles.emptyContainer}>
         <Text style={styles.emptyTitle}>No Restaurants Yet</Text>
         <Text style={styles.emptyMessage}>
-          Restaurants will appear here once they're added to the database.
+          Add some restaurants to the mock data file to see them here.
         </Text>
-        <TouchableOpacity style={styles.refreshButton} onPress={onRefresh}>
-          <Text style={styles.refreshButtonText}>Refresh</Text>
-        </TouchableOpacity>
       </SafeAreaView>
     );
   }
@@ -415,48 +325,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.background,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: COLORS.textLight,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    backgroundColor: COLORS.background,
-  },
-  errorTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: COLORS.error,
-    marginBottom: 12,
-  },
-  errorMessage: {
-    fontSize: 15,
-    color: COLORS.textLight,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  retryButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -475,17 +343,6 @@ const styles = StyleSheet.create({
     color: COLORS.textLight,
     textAlign: 'center',
     marginBottom: 24,
-  },
-  refreshButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 10,
-  },
-  refreshButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
   },
   header: {
     paddingHorizontal: 20,
