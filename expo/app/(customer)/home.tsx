@@ -137,18 +137,7 @@ export default function CustomerHomeScreen() {
     queryKey: ['restaurants', debouncedSearch, filters, nearMeRadius, latitude, longitude],
     queryFn: async () => {
       console.log('🔄 Fetching restaurants from API...');
-      
-      // Build query params
-      const params: any = {};
-      if (debouncedSearch) params.query = debouncedSearch;
-      if (filters.cuisines.length > 0) params.cuisineType = filters.cuisines.join(',');
-      if (filters.categories.length > 0) params.category = filters.categories.join(',');
-      if (nearMeRadius && latitude && longitude) {
-        params.lat = latitude;
-        params.lng = longitude;
-        params.radius = nearMeRadius;
-      }
-      
+
       try {
         const result = await api.getRestaurants();
         if (result?.data && result.data.length > 0) {
@@ -156,20 +145,18 @@ export default function CustomerHomeScreen() {
           return result;
         }
       } catch (err) {
-        console.warn('[Home] API fetch failed, using mock data:', err);
+        console.warn('[Home] API fetch failed, falling back to mock data:', err);
       }
       const { restaurants: mockRestaurants } = await import('@/mocks/data');
       console.log('✅ Using mock restaurants:', mockRestaurants.length);
       return { data: mockRestaurants as any[] };
     },
-    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    retry: (failureCount, error: any) => {
-      const msg = error?.message || '';
-      if (msg.includes('aborted') || msg.includes('signal is aborted') || error?.name === 'AbortError') {
-        return false;
-      }
-      return failureCount < 2;
-    },
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
   // REAL API QUERY - Fetch deals from backend

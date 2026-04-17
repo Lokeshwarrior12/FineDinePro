@@ -27,22 +27,12 @@ SplashScreen.preventAutoHideAsync();
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 10 * 60 * 1000, // 10 minutes (previously cacheTime)
-      retry: (failureCount, error: any) => {
-        const msg = error?.message || '';
-        if (
-          error?.name === 'AbortError' ||
-          msg.includes('aborted') ||
-          msg.includes('signal is aborted')
-        ) {
-          return false;
-        }
-        return failureCount < 2;
-      },
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      retry: false,
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
+      refetchOnReconnect: false,
+      refetchOnMount: false,
       networkMode: 'online',
     },
     mutations: {
