@@ -99,15 +99,12 @@ function RootLayoutInner() {
     }
   }, [session, loading]);
 
-  // Show loading screen while auth is loading or app is preparing
-  if (loading || !isReady) {
-    return <LoadingScreen />;
-  }
+  const showLoading = loading || !isReady;
 
   return (
-    <>
+    <View style={{ flex: 1, backgroundColor: '#fff' }}>
       <StatusBar style="dark" />
-      
+
       <Stack
         screenOptions={{
           headerShown: false,
@@ -190,9 +187,15 @@ function RootLayoutInner() {
         />
       </Stack>
 
+      {showLoading && (
+        <View style={styles.loadingOverlay} pointerEvents="auto">
+          <ActivityIndicator size="large" color="#E85D04" />
+        </View>
+      )}
+
       {/* Development Health Check Button */}
       {Platform.OS !== 'web' && __DEV__ && <DevHealthCheckButton />}
-    </>
+    </View>
   );
 }
 
@@ -295,6 +298,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    zIndex: 10000,
   },
   devButton: {
     position: 'absolute',
