@@ -224,7 +224,7 @@ interface RequestOptions extends RequestInit {
 class APIClient {
   private authToken: string | null = null;
   private readonly baseURL: string;
-  private readonly defaultTimeout = 30000; // 30 seconds
+  private readonly defaultTimeout = 60000; // 60 seconds (fly.io cold start buffer)
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -317,9 +317,15 @@ class APIClient {
     } catch (error: any) {
       clearTimeout(timeoutId);
 
-      if (error.name === 'AbortError' || error.message?.includes('aborted')) {
+      if (
+        error.name === 'AbortError' ||
+        error.message?.includes('aborted') ||
+        error.message?.includes('signal is aborted')
+      ) {
         console.warn('⏱️ API Timeout/Abort:', endpoint);
-        throw new Error('Request timeout. Please try again.');
+        const abortError = new Error('Request timeout. Please try again.');
+        abortError.name = 'AbortError';
+        throw abortError;
       }
 
       if (error.message === 'Network request failed' || error.message?.includes('fetch')) {

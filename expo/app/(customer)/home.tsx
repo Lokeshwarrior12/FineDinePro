@@ -163,7 +163,13 @@ export default function CustomerHomeScreen() {
       return { data: mockRestaurants as any[] };
     },
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-    retry: 2,
+    retry: (failureCount, error: any) => {
+      const msg = error?.message || '';
+      if (msg.includes('aborted') || msg.includes('signal is aborted') || error?.name === 'AbortError') {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 
   // REAL API QUERY - Fetch deals from backend
