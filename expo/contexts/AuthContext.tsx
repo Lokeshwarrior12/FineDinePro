@@ -147,80 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       setError(null);
-      console.log('📥 Fetching profile for user:', authUser.id);
-
-      let data: any = null;
-      let dbError: any = null;
-
-      const isAbortError = (err: any) =>
-        err?.name === 'AbortError' ||
-        err?.message?.includes('AbortError') ||
-        err?.message?.includes('signal is aborted') ||
-        err?.message?.includes('aborted');
-
-      const fetchWithRetry = async (attempt = 0): Promise<void> => {
-        try {
-          const result = await db
-            .users()
-            .select('*')
-            .eq('id', authUser.id)
-            .maybeSingle();
-          data = result.data;
-          dbError = result.error;
-        } catch (fetchErr: any) {
-          if (isAbortError(fetchErr) && attempt < 2) {
-            console.warn(`⚠️ Profile fetch aborted (attempt ${attempt + 1}), retrying...`);
-            await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-            return fetchWithRetry(attempt + 1);
-          } else if (isAbortError(fetchErr)) {
-            console.warn('⚠️ Profile fetch aborted after retries, continuing without DB data');
-          } else {
-            throw fetchErr;
-          }
-        }
-      };
-
-      await fetchWithRetry();
-
-      if (!data && !dbError) {
-        console.log('📝 Creating new user profile in database');
-        
-        const newProfile = {
-          id: authUser.id,
-          email: authUser.email!,
-          name: authUser.user_metadata?.name || 'User',
-          phone: authUser.user_metadata?.phone || '',
-          address: '',
-          role: (authUser.user_metadata?.role || 'customer') as UserRole,
-          loyalty_points: 0,
-          photo: authUser.user_metadata?.avatar_url || null,
-        };
-
-        try {
-          const { error: insertError } = await db
-            .users()
-            .insert(newProfile as any)
-            .select()
-            .single();
-
-          if (insertError) {
-            const errStr = JSON.stringify(insertError);
-            if (!errStr.includes('AbortError') && !errStr.includes('signal is aborted') && !errStr.includes('aborted')) {
-              console.error('❌ Failed to create user profile:', errStr);
-            } else {
-              console.warn('⚠️ Profile insert aborted - will retry on next auth event');
-            }
-          } else {
-            console.log('✅ User profile created successfully');
-          }
-        } catch (insertErr: any) {
-          if (isAbortError(insertErr)) {
-            console.warn('⚠️ Profile insert aborted - will retry on next auth event');
-          } else {
-            console.error('❌ Failed to create user profile:', insertErr);
-          }
-        }
-      }
+      console.log('📥 Building profile from auth metadata (mock mode):', authUser.id);
 
       // Load cached favorites and points
       const [storedFavorites, storedPoints] = await Promise.all([
@@ -228,23 +155,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         AsyncStorage.getItem(STORAGE_KEYS.POINTS),
       ]);
 
-      // Build user profile
+      // Build user profile from auth metadata only (no DB calls)
       const profile: User = {
         id: authUser.id,
-        name: (data as any)?.name || authUser.user_metadata?.name || 'User',
-        email: (data as any)?.email || authUser.email || '',
-        phone: (data as any)?.phone || authUser.user_metadata?.phone || '',
-        address: (data as any)?.address || '',
-        role: (data as any)?.role || (authUser.user_metadata?.role as UserRole) || 'customer',
-        points: storedPoints
-          ? parseInt(storedPoints, 10)
-          : (data as any)?.loyalty_points || 0,
-        favorites: storedFavorites
-          ? JSON.parse(storedFavorites)
-          : (data as any)?.favorites || [],
-        photo: (data as any)?.photo || authUser.user_metadata?.avatar_url,
-        restaurantId: (data as any)?.restaurant_id || undefined,
-        cardDetails: (data as any)?.card_details as CardDetails | undefined,
+        name: authUser.user_metadata?.name || 'User',
+        email: authUser.email || '',
+        phone: authUser.user_metadata?.phone || '',
+        address: '',
+        role: (authUser.user_metadata?.role as UserRole) || 'customer',
+        points: storedPoints ? parseInt(storedPoints, 10) : 0,
+        favorites: storedFavorites ? JSON.parse(storedFavorites) : [],
+        photo: authUser.user_metadata?.avatar_url,
+        restaurantId: undefined,
+        cardDetails: undefined,
       };
 
       setUser(profile);
@@ -255,16 +178,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       console.log('✅ Profile loaded:', profile.email, `(${profile.role})`);
     } catch (err: any) {
-      const isAbort = err?.name === 'AbortError' ||
-        err?.message?.includes('AbortError') ||
-        err?.message?.includes('signal is aborted') ||
-        err?.message?.includes('aborted');
-      if (isAbort) {
-        console.warn('⚠️ Profile fetch was aborted - will retry on next auth event');
-      } else {
-        console.error('[Auth] Profile fetch failed:', err);
-        setError(err.message ?? 'Failed to load profile');
-      }
+      console.error('[Auth] Profile build failed:', err);
+      setError(err.message ?? 'Failed to load profile');
     } finally {
       fetchingProfileRef.current = false;
     }
@@ -470,18 +385,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       console.log('📝 Updating profile:', Object.keys(data));
 
-      // Convert to snake_case for database
-      const dbData: any = {};
-      if (data.name !== undefined) dbData.name = data.name;
-      if (data.phone !== undefined) dbData.phone = data.phone;
-      if (data.address !== undefined) dbData.address = data.address;
-      if (data.photo !== undefined) dbData.photo = data.photo;
-      if (data.cardDetails !== undefined) dbData.card_details = data.cardDetails;
-
-      const { error } = await (db.users() as any).update(dbData).eq('id', user.id);
-
-      if (error) throw error;
-
       const updated = { ...user, ...data };
       setUser(updated);
       await AsyncStorage.setItem(
@@ -505,14 +408,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const isFavorite = user.favorites.includes(restaurantId);
-
-        if (isFavorite) {
-          // Remove favorite
-          await api.removeFavorite(restaurantId);
-        } else {
-          // Add favorite
-          await api.addFavorite(restaurantId);
-        }
 
         setUser((prev) => {
           if (!prev) return prev;
