@@ -225,6 +225,8 @@ class APIClient {
   private authToken: string | null = null;
   private readonly baseURL: string;
   private readonly defaultTimeout = 60000; // 60 seconds (fly.io cold start buffer)
+  private remoteDataDisabled = false;
+  private remoteDataDisableReason: string | null = null;
 
   constructor() {
     this.baseURL = API_BASE_URL;
@@ -270,6 +272,13 @@ class APIClient {
 
     const method = fetchOptions.method || 'GET';
     const url = `${this.baseURL}${endpoint}`;
+    const isReadRequest = method === 'GET';
+
+    if (isReadRequest && this.remoteDataDisabled) {
+      throw new Error(
+        this.remoteDataDisableReason ?? 'Remote data disabled for this session; using mock data.'
+      );
+    }
 
     console.log(`📡 API Request: ${method} ${endpoint}`);
 
@@ -325,17 +334,34 @@ class APIClient {
         console.warn('⏱️ API Timeout/Abort:', endpoint);
         const abortError = new Error('Request timeout. Please try again.');
         abortError.name = 'AbortError';
+        if (isReadRequest) {
+          this.disableRemoteDataForSession(abortError.message);
+        }
         throw abortError;
       }
 
       if (error.message === 'Network request failed' || error.message?.includes('fetch')) {
         console.warn('🔌 Network Error:', endpoint);
-        throw new Error('Unable to connect. Please check your internet connection.');
+        const networkError = new Error('Unable to connect. Please check your internet connection.');
+        if (isReadRequest) {
+          this.disableRemoteDataForSession(networkError.message);
+        }
+        throw networkError;
       }
 
       console.error('❌ API Error:', endpoint, error);
+      if (isReadRequest) {
+        this.disableRemoteDataForSession(error.message ?? 'Remote data request failed.');
+      }
       throw error;
     }
+  }
+
+  private disableRemoteDataForSession(reason: string) {
+    if (this.remoteDataDisabled) return;
+    this.remoteDataDisabled = true;
+    this.remoteDataDisableReason = `Remote data disabled after first failed fetch: ${reason}`;
+    console.warn('🧪 Mock data mode enabled for this session:', reason);
   }
 
   /* ──────────────────────────────────────────────────────────
