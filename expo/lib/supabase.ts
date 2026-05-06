@@ -33,11 +33,14 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   }
 }
 
-export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+const FORCE_MOCK_DATA = true;
+
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY) && !FORCE_MOCK_DATA;
 
 console.log('🔧 Supabase Configuration:');
 console.log('  URL:', SUPABASE_URL || 'Not set');
 console.log('  Key:', SUPABASE_ANON_KEY ? 'Set ✓' : 'Not set ✗');
+console.log('  Mock data mode:', FORCE_MOCK_DATA ? 'Enabled ✓' : 'Disabled');
 console.log('  Configured:', isSupabaseConfigured ? 'Yes ✓' : 'No ✗');
 
 /* ──────────────────────────────────────────────────────────
@@ -290,8 +293,8 @@ export const supabase: SupabaseClient<Database> = isSupabaseConfigured
             }),
             signOut: async () => ({ error: null }),
             refreshSession: async () => ({
-              data: { session: null },
-              error: { message: 'Supabase not configured' },
+              data: { session: null, user: null },
+              error: null,
             }),
           };
         }
