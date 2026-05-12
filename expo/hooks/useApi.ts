@@ -3,6 +3,8 @@ import { restaurants as mockRestaurants, deals as mockDeals, services as mockSer
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { Restaurant, Deal, Service, Coupon } from '@/types';
 
+const USE_SAMPLE_DATA_ONLY = true as const;
+
 function snakeToCamel(obj: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const key in obj) {
@@ -17,6 +19,7 @@ function transformArray<T>(data: unknown[] | null): T[] {
   return data.map(item => snakeToCamel(item as Record<string, unknown>) as unknown as T);
 }
 
+
 export function useRestaurants(params?: {
   query?: string;
   cuisineType?: string;
@@ -28,29 +31,7 @@ export function useRestaurants(params?: {
   return useQuery({
     queryKey: ['restaurants', params],
     queryFn: async (): Promise<Restaurant[]> => {
-      if (isSupabaseConfigured) {
-        try {
-          let query = supabase.from('restaurants').select('*');
-
-          if (params?.query) {
-            query = query.ilike('name', `%${params.query}%`);
-          }
-          if (params?.cuisineType) {
-            query = query.eq('cuisine_type', params.cuisineType);
-          }
-
-          const { data, error } = await query;
-          if (error) {
-            console.warn('[useRestaurants] Supabase error, using mock data:', error.message);
-          } else if (data && data.length > 0) {
-            console.log('[useRestaurants] Loaded', data.length, 'restaurants from Supabase');
-            return transformArray<Restaurant>(data);
-          }
-        } catch (err) {
-          console.warn('[useRestaurants] Supabase fetch failed, using mock data:', err);
-        }
-      }
-
+      void USE_SAMPLE_DATA_ONLY;
       let filtered = [...mockRestaurants];
 
       if (params?.query) {
@@ -94,22 +75,6 @@ export function useRestaurant(id: string | undefined) {
     queryFn: async (): Promise<Restaurant | null> => {
       if (!id) return null;
 
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase
-            .from('restaurants')
-            .select('*')
-            .eq('id', id)
-            .maybeSingle();
-
-          if (!error && data) {
-            return snakeToCamel(data as Record<string, unknown>) as unknown as Restaurant;
-          }
-        } catch (err) {
-          console.warn('[useRestaurant] Supabase fetch failed:', err);
-        }
-      }
-
       return mockRestaurants.find(r => r.id === id) || null;
     },
     enabled: !!id,
@@ -120,24 +85,6 @@ export function useDeals(params?: { restaurantId?: string }) {
   return useQuery({
     queryKey: ['deals', params],
     queryFn: async (): Promise<Deal[]> => {
-      if (isSupabaseConfigured) {
-        try {
-          let query = supabase.from('deals').select('*').eq('is_active', true);
-
-          if (params?.restaurantId) {
-            query = query.eq('restaurant_id', params.restaurantId);
-          }
-
-          const { data, error } = await query;
-          if (!error && data && data.length > 0) {
-            console.log('[useDeals] Loaded', data.length, 'deals from Supabase');
-            return transformArray<Deal>(data);
-          }
-        } catch (err) {
-          console.warn('[useDeals] Supabase fetch failed:', err);
-        }
-      }
-
       let filtered = mockDeals.filter(d => d.isActive);
 
       if (params?.restaurantId) {
@@ -156,22 +103,6 @@ export function useDeal(id: string | undefined) {
     queryFn: async (): Promise<Deal | null> => {
       if (!id) return null;
 
-      if (isSupabaseConfigured) {
-        try {
-          const { data, error } = await supabase
-            .from('deals')
-            .select('*')
-            .eq('id', id)
-            .maybeSingle();
-
-          if (!error && data) {
-            return snakeToCamel(data as Record<string, unknown>) as unknown as Deal;
-          }
-        } catch (err) {
-          console.warn('[useDeal] Supabase fetch failed:', err);
-        }
-      }
-
       return mockDeals.find(d => d.id === id) || null;
     },
     enabled: !!id,
@@ -183,7 +114,7 @@ export function useClaimDeal() {
 
   return useMutation({
     mutationFn: async (dealId: string) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -259,7 +190,7 @@ export function useServices(restaurantId?: string) {
   return useQuery({
     queryKey: ['services', restaurantId],
     queryFn: async (): Promise<Service[]> => {
-      if (isSupabaseConfigured && restaurantId) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured && restaurantId) {
         try {
           const { data, error } = await supabase
             .from('services')
@@ -287,7 +218,7 @@ export function useCoupons() {
   return useQuery({
     queryKey: ['coupons'],
     queryFn: async (): Promise<Coupon[]> => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -324,7 +255,7 @@ export function useCreateTableBooking() {
       tableType?: string;
       specialRequests?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -382,7 +313,7 @@ export function useCreateServiceBooking() {
       guests: number;
       totalPrice: number;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -432,7 +363,7 @@ export function useTableBookings() {
   return useQuery({
     queryKey: ['bookings'],
     queryFn: async () => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -461,7 +392,7 @@ export function useServiceBookings() {
   return useQuery({
     queryKey: ['serviceBookings'],
     queryFn: async () => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -490,7 +421,7 @@ export function useOrders() {
   return useQuery({
     queryKey: ['orders'],
     queryFn: async () => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -527,7 +458,7 @@ export function useCreateOrder() {
       orderType?: 'dinein' | 'pickup';
       notes?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -576,7 +507,7 @@ export function useNotifications() {
   return useQuery({
     queryKey: ['notifications'],
     queryFn: async () => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data: session } = await supabase.auth.getSession();
           const userId = session?.session?.user?.id;
@@ -622,7 +553,7 @@ export function useMarkNotificationRead() {
 
   return useMutation({
     mutationFn: async (id: string) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           await (supabase
             .from('notifications') as any)
@@ -647,7 +578,7 @@ export function useMenuItems(restaurantId: string | undefined) {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('menu_items')
@@ -698,7 +629,7 @@ export function useCreateMenuItem() {
       isAvailable?: boolean;
       image?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const { data: item, error } = await (supabase
           .from('menu_items') as any)
           .insert([{
@@ -744,7 +675,7 @@ export function useUpdateMenuItem() {
       isAvailable?: boolean;
       image?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const updateData: Record<string, unknown> = {};
         if (data.name !== undefined) updateData.name = data.name;
         if (data.description !== undefined) updateData.description = data.description;
@@ -779,7 +710,7 @@ export function useDeleteMenuItem() {
 
   return useMutation({
     mutationFn: async ({ id, restaurantId }: { id: string; restaurantId: string }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const { error } = await supabase
           .from('menu_items')
           .delete()
@@ -802,7 +733,7 @@ export function useFavoriteRestaurants(favoriteIds: string[]) {
     queryFn: async (): Promise<Restaurant[]> => {
       if (!favoriteIds || favoriteIds.length === 0) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('restaurants')
@@ -827,7 +758,7 @@ export function useFavoriteRestaurants(favoriteIds: string[]) {
 export function useUpdateProfile() {
   return useMutation({
     mutationFn: async (data: { userId: string; name?: string; phone?: string; address?: string }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const updateData: Record<string, unknown> = {};
         if (data.name !== undefined) updateData.name = data.name;
         if (data.phone !== undefined) updateData.phone = data.phone;
@@ -854,7 +785,7 @@ export function useRestaurantOrders(restaurantId: string | undefined) {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('orders')
@@ -881,7 +812,7 @@ export function useUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ orderId, status, restaurantId }: { orderId: string; status: string; restaurantId: string }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const { data, error } = await (supabase
           .from('orders') as any)
           .update({ status })
@@ -907,7 +838,7 @@ export function useRestaurantBookings(restaurantId: string | undefined) {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('bookings')
@@ -934,7 +865,7 @@ export function useInventory(restaurantId: string | undefined) {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('inventory')
@@ -970,7 +901,7 @@ export function useCreateInventoryItem() {
       costPerUnit?: number;
       supplier?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const { data: item, error } = await (supabase
           .from('inventory') as any)
           .insert([{
@@ -1012,7 +943,7 @@ export function useUpdateInventoryItem() {
       costPerUnit?: number;
       supplier?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const updateData: Record<string, unknown> = {};
         if (data.name !== undefined) updateData.name = data.name;
         if (data.category !== undefined) updateData.category = data.category;
@@ -1045,7 +976,7 @@ export function useDeleteInventoryItem() {
 
   return useMutation({
     mutationFn: async ({ id, restaurantId }: { id: string; restaurantId: string }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const { error } = await supabase
           .from('inventory')
           .delete()
@@ -1068,7 +999,7 @@ export function useRestaurantDeals(restaurantId: string | undefined) {
     queryFn: async (): Promise<Deal[]> => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('deals')
@@ -1110,7 +1041,7 @@ export function useCreateDeal() {
       endTime?: string;
       termsConditions?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const { data: deal, error } = await (supabase
           .from('deals') as any)
           .insert([{
@@ -1152,7 +1083,7 @@ export function useFoodWaste(restaurantId: string | undefined) {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('food_waste')
@@ -1190,7 +1121,7 @@ export function useCreateFoodWaste() {
       time: string;
       notes?: string;
     }) => {
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         const { data: record, error } = await (supabase
           .from('food_waste') as any)
           .insert([{
@@ -1226,7 +1157,7 @@ export function useEmployees(restaurantId: string | undefined) {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('employees')
@@ -1252,7 +1183,7 @@ export function useSchedules(restaurantId: string | undefined) {
     queryFn: async () => {
       if (!restaurantId) return [];
 
-      if (isSupabaseConfigured) {
+      if (!USE_SAMPLE_DATA_ONLY && isSupabaseConfigured) {
         try {
           const { data, error } = await supabase
             .from('schedules')

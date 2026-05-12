@@ -7,12 +7,10 @@ import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants from 'expo-constants';
-import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
-import { api } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
 
 /* ──────────────────────────────────────────────────────────
    Prevent Splash Screen Auto-Hide
@@ -69,22 +67,13 @@ function LoadingScreen() {
 ────────────────────────────────────────────────────────── */
 
 function RootLayoutInner() {
-  const { session, loading } = useAuth();
+  const { loading } = useAuth();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const prepare = async () => {
       try {
-        // Set auth token if session exists
-        if (session?.access_token) {
-          api.setAuthToken(session.access_token);
-          console.log('✅ Auth token set in API client');
-        } else {
-          api.setAuthToken(null);
-          console.log('🔓 No auth token');
-        }
-
-        // Small delay to ensure everything is initialized
+        // Small delay to ensure sample state is initialized
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
         console.error('❌ Error preparing app:', error);
@@ -97,7 +86,7 @@ function RootLayoutInner() {
     if (!loading) {
       prepare();
     }
-  }, [session, loading]);
+  }, [loading]);
 
   const showLoading = loading || !isReady;
 
@@ -245,31 +234,8 @@ export default function RootLayout() {
     const initialize = async () => {
       console.log('🚀 Initializing Rork-FineDine...');
       console.log('📱 Platform:', Platform.OS);
-      console.log('🌐 API URL:', Constants.expoConfig?.extra?.apiUrl || 'Not configured');
-      console.log('🔐 Supabase URL:', Constants.expoConfig?.extra?.supabaseUrl || 'Not configured');
+      console.log('📦 Data mode: sample only');
       console.log('🔧 Environment:', __DEV__ ? 'Development' : 'Production');
-
-      // Setup auth state listener
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (event, session) => {
-        console.log('🔔 Auth event:', event);
-
-        if (session?.access_token) {
-          api.setAuthToken(session.access_token);
-        } else {
-          api.setAuthToken(null);
-        }
-
-        // Invalidate all queries on auth change
-        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT') {
-          queryClient.invalidateQueries();
-        }
-      });
-
-      return () => {
-        subscription.unsubscribe();
-      };
     };
 
     initialize();
